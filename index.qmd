@@ -1,0 +1,109 @@
+---
+title: Parametric learning curve models for surgery training research
+authors:
+  - name: Martin Schmettow
+    affiliation: University of Twente
+    roles: writing
+    corresponding: true
+  - name: Marleen Groenier
+    affiliation: University of Twente
+    roles: writing
+    corresponding: false
+bibliography: references.bib
+---
+
+# Introduction
+
+Minimally invasive surgery (MIS) is usually considered beneficial for the patient by reducing several risks, such as bleeding, tissue damage and infections. On contrast, the main inhibitor for broader adoption of these techniques is that they are more difficult to perform, for example due to specialized instruments, limited vision of the surgery location and requiring awkward body positions or movements.
+A primary problem is that MIS techniques are all very idiosyncratic. While open surgery can be reduced to a certain number of generic techniques that, once acquired, apply in a variety of situations, MIS techniques are rather idiosyncratic. Open surgery to repair a ruptured meniscus is technically not much different to repairing a torn ligament or Achilles tendon, but for MIS the surgeon first needs to be trained using specialized tools and workflows.
+For an increasing number of specialized procedures, training simulators offer a solution. …
+The obvious advantage of training simulators is that trainings can be administered efficiently and safely. In addition, training simulators also are powerful recording devices and most systems already provide useful high-level metrics of performance, such as time on task, damage or motion efficiency.
+Parametric learning curves are generally applicable models for repetitive training tasks in surgery simulators. We introduce the exponential learning curve model and derive the interpretation of its parameters formally. Using data from pilot experiments, we illustrate the practical use of parametric learning curves in three scenarios, (1) the search for valid predictors for training outcomes, (2) the early identification of low performers and (3) the validation of a novel training method.
+
+Advancement in surgery science is roughly proportional to the number of specialized routines available at one point in history. Take as example an Achilles tendon repair: The general way to fix it is an open surgery, which has the disadvantage of leaving a 8-12cm long mark and carries the risk of damaging the XY nerve. In contrast, the newer Dresdner method uses a specially formed needle to access the ruptured region from above, which leaves a much smaller mark with the same quality at lower risk. While inferior in quality, the open surgery method has the advantage of using to uses very general procedures and instruments, not very different from, let’s say a ruptured band or quadriceps tendon harvest. Every surgeon who can perform one of these procedures can also do the others, with similar instruments. For the Dresdner method the opposite is true: it can only be performed with the Dresdner instrument and this instrument is useless for anything else. The patient will only enjoy the benefits of specialized methods only if the present surgeon has the Dresdner instrument at hand and knows how to use it. For the professional surgeon aspiring to deliver state-of-the-art procedures this means she or he must learn three specialized procedures, where formerly there was one. With the advances in surgery science comes a manifold demand for training, which cannot longer be satisfied by traditional training paradigms.
+
+
+## Exponential learning curve models
+
+[...]
+
+###	The exponential law of learning
+
+The model introduced in this section dates back to a classic psychological experiment on the human memory. In self-experiments Ebbinghaus memorized sets of nonsense syllables and measured the number of correctly recalled syllables over time. The result is a decay curve taking the same shape that describes radioactive decay (which was only discovered a decade later). With R the rate of decay and N_0 the number of syllables (or atoms) at time t = 0, the following function produces the expected number of remaining syllables (or atoms) y at point in time t:
+
+$$y = N_0 (1-R)^t$$
+
+
+Note that this formula is better known in the form y = N_0 exp(rt), which is owing to the fact that many decades ago, computing arbitrary exponential equations was expensive and was usually accomplished by using logarithmic tables, which were either coded with a natural or decimal base. In consequence, parameter r contains the rate of decay, as well as a normalizing factor, which is less intuitive. 
+
+More precisely, RELL makes two assumptions about the underlying process:
+1.	a finite set of items
+2.	a constant probability to decay, whereby decay means the item is lost forever
+Training is building up skills, which is the opposite of decay. By a slight change in semantics it can be described as a process of decay. If we imagine that the performance we see at one time in the process, is the sum of many small performance enhancing tricks that have been discovered at an earlier moment. If we further assume that the set of possible tricks is finite (N_0), with a constant probability to be discovered (R), and that the performance measure becomes zero, when all tricks have been found, the decay model applies in the given form. However, in the context of a discovery process (rather than disappearance), it is more convenient to interpret 
+However, the outcome of a training is not measured in the number of discovered tricks, and never should we be able to identify and count all the small tricks in the set. The solution is to replace N_0 by a scaling parameter, that is more general. Amplitude A scales the exponential term by the performance gain between t_0 and t_\infty. 
+P_t = A(1-R)^t
+While most performance metrics fall with improving performance (e.g. time on task, damage, workload), not all of them reach zero with infinite training, most notably, time on task. As the minimum time-on-task is not precisely known upfront and will vary between persons, the solution is to use an additive Asymptote parameter to the model, which allows maximum performance to be positive:
+P_t = A(1-R)^t + Y
+The ARY model is flexible enough to produce learning curves as those shown in Figure X and its three parameters can be interpreted as the following features of a learning sequence:
+Amplitude: amount of possible improvement at the start, positive number
+…
+Rate: the proportion found of remaining tricks
+…
+Asymptote: maximum performance, positive
+
+## Previous experience parameter
+
+## Multi-level learning curves
+
+A common mistake in learning curve modelling is to average across participants. Taking an average involves building sums and these are not well-behaved in combination with exponential functions:
+
+A simple, but not incorrect, approach to estimating learning curves is to estimate them individually and join the results afterwards to draw conclusions on the population level. The modelling framework presented here builds on the principles of multi-level modelling, which means that individual parameters are estimated on the participant level and the population level, simultaneously, which not only makes interpretation easier, but also makes the model more robust with small data sets and against outliers. For the case of trainee selection, participant-level random effects have good psychometric properties.
+
+
+```{r}
+#| eval: false
+Ampl ~ 1 + (1 |Part)
+Rate ~ 1 + (1 |Part)
+Asym ~ 1 + (1 |Part)
+```
+
+For research on performance predictors it is useful to combine the learning curve with factorial or metric predictors. For example, one could ask whether speed in a mental rotation task predicts the maximum performance a surgeon can reach in a laparoscopic task.
+
+```{r}
+#| eval: false
+Asym ~ 1  + speed + (1 |Part)
+```
+
+
+In the one-sequence model, the parameters can be interpreted exactly as was explained in the previous section. However, multi-level effects, as well as predictors are basically linear, which implies an unbounded parameter space. As shown in Table X, all three parameters of ARY have boundaries. That is a very practical problem, because the estimation engine cannot guess that these boundaries exist and can produce impossible values, such as a negative asymptote.
+
+To solve this problem, a technique is borrowed from the framework of Generalized Linear Models which is best ascribed as linearization functions. Wrapping the amplitude and asymptote linear terms in exponential functions ensures that only positive numbers reach the learning curve. The inverse logit function squeezes the linear term for rate into $[0;1]$, making sure it is a probability.
+
+```{r}
+#| eval: false
+ToT ~ exp(A) * inv_logit(R)^trial + exp(Y)
+```
+
+
+Model	Formula	Applications
+ARY		All participants are on the same level of training at the start. Measure overall effectiveness of training.
+IRY		All participants are on the same level of training at the start. Investigating variables that influence early learning
+ERY		Participants differ in previous experience or measuring retention
+
+
+Parameters
+Parameter	Letter	Symbol	R	Range	Interpretation
+Amplitude	A	δ (delta)	ampl	[0;∞]	total training potential
+initial performance	I	α(alpha)	init	[ω;∞]	initial performance
+previous experience	E	ψ (psi)	pexp	[0;∞]	number of (virtual) training trials before the training
+Rate	R	ρ (rho)	rate	[0;∞]	efficiency (or speed) of training
+Scale	S	σ (sigma)	scale	[0;∞]	scale of performance
+Asymptote	Y	ω (omega)	asym	[0;∞]	potential maximum performance
+Trial		t	trial	[0,1,2,… ]
+trial number
+Performance		y	perf	varies	performance measure
+					
+
+
+
+
