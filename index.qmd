@@ -23,22 +23,14 @@ Parametric learning curves are generally applicable models for repetitive traini
 Advancement in surgery science is roughly proportional to the number of specialized routines available at one point in history. Take as example an Achilles tendon repair: The general way to fix it is an open surgery, which has the disadvantage of leaving a 8-12cm long mark and carries the risk of damaging the XY nerve. In contrast, the newer Dresdner method uses a specially formed needle to access the ruptured region from above, which leaves a much smaller mark with the same quality at lower risk. While inferior in quality, the open surgery method has the advantage of using to uses very general procedures and instruments, not very different from, let’s say a ruptured band or quadriceps tendon harvest. Every surgeon who can perform one of these procedures can also do the others, with similar instruments. For the Dresdner method the opposite is true: it can only be performed with the Dresdner instrument and this instrument is useless for anything else. The patient will only enjoy the benefits of specialized methods only if the present surgeon has the Dresdner instrument at hand and knows how to use it. For the professional surgeon aspiring to deliver state-of-the-art procedures this means she or he must learn three specialized procedures, where formerly there was one. With the advances in surgery science comes a manifold demand for training, which cannot longer be satisfied by traditional training paradigms.
 
 
-## Exponential learning curve models
+## A macro theory of skill acquisition
 
-[...]
-
-###	The exponential law of learning
-
-The model introduced in this section dates back to a classic psychological experiment on the human memory. In self-experiments Ebbinghaus memorized sets of nonsense syllables and measured the number of correctly recalled syllables over time. The result is a decay curve taking the same shape that describes radioactive decay (which was only discovered a decade later). With R the rate of decay and N_0 the number of syllables (or atoms) at time t = 0, the following function produces the expected number of remaining syllables (or atoms) y at point in time t:
+/*The model introduced in this section dates back to a classic psychological experiment on the human memory. In self-experiments Ebbinghaus memorized sets of nonsense syllables and measured the number of correctly recalled syllables over time. The result is a decay curve taking the same shape that describes radioactive decay (which was only discovered a decade later). With R the rate of decay and N_0 the number of syllables (or atoms) at time t = 0, the following function produces the expected number of remaining syllables (or atoms) y at point in time t:
 
 $$y = N_0 (1-R)^t$$
+/*Note that this formula is better known in the form y = N_0 exp(rt), which is owing to the fact that many decades ago, computing arbitrary exponential equations was expensive and was usually accomplished by using logarithmic tables, which were either coded with a natural or decimal base. In consequence, parameter r contains the rate of decay, as well as a normalizing factor, which is less intuitive. */
 
 
-Note that this formula is better known in the form y = N_0 exp(rt), which is owing to the fact that many decades ago, computing arbitrary exponential equations was expensive and was usually accomplished by using logarithmic tables, which were either coded with a natural or decimal base. In consequence, parameter r contains the rate of decay, as well as a normalizing factor, which is less intuitive. 
-
-More precisely, RELL makes two assumptions about the underlying process:
-1.	a finite set of items
-2.	a constant probability to decay, whereby decay means the item is lost forever
 Training is building up skills, which is the opposite of decay. By a slight change in semantics it can be described as a process of decay. If we imagine that the performance we see at one time in the process, is the sum of many small performance enhancing tricks that have been discovered at an earlier moment. If we further assume that the set of possible tricks is finite (N_0), with a constant probability to be discovered (R), and that the performance measure becomes zero, when all tricks have been found, the decay model applies in the given form. However, in the context of a discovery process (rather than disappearance), it is more convenient to interpret 
 However, the outcome of a training is not measured in the number of discovered tricks, and never should we be able to identify and count all the small tricks in the set. The solution is to replace N_0 by a scaling parameter, that is more general. Amplitude A scales the exponential term by the performance gain between t_0 and t_\infty. 
 P_t = A(1-R)^t
@@ -50,6 +42,34 @@ Amplitude: amount of possible improvement at the start, positive number
 Rate: the proportion found of remaining tricks
 …
 Asymptote: maximum performance, positive
+
+
+
+## Exponential learning curve models
+
+Exponential processes are ubiquitous in nature. In its most purest form it can be found in the decay of radioactive atoms, where the number of decaying particles $n$ with a constant probability of decay $p$ and the number of particles at time t = 0, $a$ follows:
+
+$$n = a(1-d)^t$$
+where: $0 \leq d \leq 1 $ and $a \geq 0$ and $t \in N$.
+
+Projected to the pool of potential tweaks, this model describes how many tweaks are initially in the pool as $a - Y$. Trainees with larger values have more potential to improve, but they also start from a low initial performance (expressed as a large number). As we assume a fixed size pool $a_T$ for a given task, the only useful interpretation of $a \lt a_T $ is that some tweaks were discovered before $t = 0$, which means it is an inverse measure of previous experience. A simple re-arrangement of the formula improves the expressiveness of the model wrt. previous experience:
+
+$$f(t) = (1-p)^{(p + t)}$$
+where: $e = \log_p(a)$.
+In this form, $p$ adds a number of (virtual) training trials before the training, which is a convenient measure of previous experience.
+
+While particle decay numbers asymptotically reach zero any skill-related outcomes, like time-on-task, drop towards a strictly positive asymptote (e.g. 3 seconds), therefore:
+
+$$
+f(t) = as^t + Y
+$$
+
+Most accounts of exponential learning curve models use the following formula:
+
+$$f(t) = a\exp(st) + Y$$
+$Y$ is the asymptote and $\beta$ the possible amount of improvement. However, by using the natural exponent function, this formula misses an important aspect of learning processes, which is the *learning rate*.
+
+
 
 ## Previous experience parameter
 
