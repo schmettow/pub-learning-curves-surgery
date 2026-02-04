@@ -14,21 +14,336 @@ bibliography: references.bib
 
 # Introduction
 
-Minimally invasive surgery (MIS) is usually considered beneficial for the patient by reducing several risks, such as bleeding, tissue damage and infections. On contrast, the main inhibitor for broader adoption of these techniques is that they are more difficult to perform, for example due to specialized instruments, limited vision of the surgery location and requiring awkward body positions or movements.
-A primary problem is that MIS techniques are all very idiosyncratic. While open surgery can be reduced to a certain number of generic techniques that, once acquired, apply in a variety of situations, MIS techniques are rather idiosyncratic. Open surgery to repair a ruptured meniscus is technically not much different to repairing a torn ligament or Achilles tendon, but for MIS the surgeon first needs to be trained using specialized tools and workflows.
-For an increasing number of specialized procedures, training simulators offer a solution. …
-The obvious advantage of training simulators is that trainings can be administered efficiently and safely. In addition, training simulators also are powerful recording devices and most systems already provide useful high-level metrics of performance, such as time on task, damage or motion efficiency.
-Parametric learning curves are generally applicable models for repetitive training tasks in surgery simulators. We introduce the exponential learning curve model and derive the interpretation of its parameters formally. Using data from pilot experiments, we illustrate the practical use of parametric learning curves in three scenarios, (1) the search for valid predictors for training outcomes, (2) the early identification of low performers and (3) the validation of a novel training method.
+Training processes in medical care, and in particular in technically demanding domains such as minimally invasive surgery, are commonly described using the metaphor of the *learning curve*. The appeal of this metaphor is obvious: performance improves with training, improvement is initially rapid, and later gains become progressively smaller. Despite its intuitive value, however, the learning curve is often treated as a descriptive object rather than as a generative model of learning. As a result, much of the existing literature relies on loosely specified curves, endpoint comparisons, or linearized summaries that obscure the underlying mechanisms of skill acquisition and limit the interpretability of estimated effects.
 
-Advancement in surgery science is roughly proportional to the number of specialized routines available at one point in history. Take as example an Achilles tendon repair: The general way to fix it is an open surgery, which has the disadvantage of leaving a 8-12cm long mark and carries the risk of damaging the XY nerve. In contrast, the newer Dresdner method uses a specially formed needle to access the ruptured region from above, which leaves a much smaller mark with the same quality at lower risk. While inferior in quality, the open surgery method has the advantage of using to uses very general procedures and instruments, not very different from, let’s say a ruptured band or quadriceps tendon harvest. Every surgeon who can perform one of these procedures can also do the others, with similar instruments. For the Dresdner method the opposite is true: it can only be performed with the Dresdner instrument and this instrument is useless for anything else. The patient will only enjoy the benefits of specialized methods only if the present surgeon has the Dresdner instrument at hand and knows how to use it. For the professional surgeon aspiring to deliver state-of-the-art procedures this means she or he must learn three specialized procedures, where formerly there was one. With the advances in surgery science comes a manifold demand for training, which cannot longer be satisfied by traditional training paradigms.
+This paper argues that modelling training processes requires a shift from descriptive learning curves to *parametric learning models* whose parameters have direct real-world interpretations. In particular, we focus on performance measures that decrease with skill acquisition, such as time on task, error counts, or motion inefficiency, and propose a simple three-parameter model that decomposes observed performance trajectories into interpretable components of learning.
 
+## Problems in Training Research
+
+A parametric perspective on learning is motivated by three recurring research problems in medical training research.
+
+The first question concerns **selection**: can we identify trainees with high long-term potential early in training? In surgical education, this question is often framed in terms of aptitude testing, simulator performance, or early learning speed. From a modelling perspective, this corresponds to predicting an individual’s *maximum achievable performance*, that is, the asymptotic level of performance once training effects are exhausted. A model that does not contain an explicit asymptote cannot address this question in a principled way.
+
+The second question concerns **training efficiency**: how can different training methods, curricula, or feedback regimes be compared in terms of how quickly they lead to improvement? This question maps naturally onto a *learning rate* parameter that quantifies how rapidly performance approaches its asymptote. Without an explicit rate parameter, efficiency is often approximated using arbitrary endpoints or time-to-criterion measures, both of which conflate learning dynamics with prior experience and measurement noise.
+
+The third question concerns **transfer and preparation**: which preparatory activities lead to effective downstream learning? Examples include box trainers, virtual reality simulators, or simplified tasks such as practicing surgical maneuvers on fruit or synthetic materials. Here, the central interest lies in *previous experience*—how much effective training time a learner brings into a new task before formal training begins. From a modelling standpoint, this corresponds to a horizontal shift of the learning trajectory rather than a change in its shape.
+
+A unifying challenge across these three questions is that they cannot be answered independently unless the learning process is decomposed into separable, interpretable components.
+
+## Limitations of prevailing approaches
+
+A brief look at the learning-curve literature in medical education reveals a striking pattern. While the term *learning curve* is ubiquitous, the majority of empirical studies rely on linear or piecewise linear analyses, often focusing on performance at a predefined endpoint (e.g., after a fixed number of cases) or on the slope of a regression line fitted to early training data. In many cases, improvement is summarized by subtracting early from late performance, or by testing whether a slope differs from zero.
+
+Such approaches have two fundamental limitations.
+
+First, **previous experience and learning rate are inseparable** in linear endpoint analyses. A trainee who starts at a better performance level due to prior exposure or positive transfer will often appear to “learn faster,” even if the underlying learning dynamics are identical. Conversely, a genuinely low learning rate cannot be distinguished from a advanced learner, already approaching the asmptote. Without an explicit model that accounts for horizontal shifts in training time, these effects are confounded by design.
+
+Second, **maximum performance cannot be predicted at all**. Linear models either imply unbounded improvement or require an arbitrary stopping rule. Endpoint analyses implicitly assume that the observed endpoint is informative about ultimate performance, an assumption that is rarely justified, especially in long training trajectories where asymptotic performance may lie far beyond the observation window.
+
+These limitations are not merely technical; they directly constrain the kinds of substantive questions that can be addressed. As long as learning curves are treated as descriptive trends rather than as parameterized processes, claims about aptitude, efficiency, or transfer remain underdetermined.
 
 ## A macro theory of skill acquisition
 
-/*The model introduced in this section dates back to a classic psychological experiment on the human memory. In self-experiments Ebbinghaus memorized sets of nonsense syllables and measured the number of correctly recalled syllables over time. The result is a decay curve taking the same shape that describes radioactive decay (which was only discovered a decade later). With R the rate of decay and N_0 the number of syllables (or atoms) at time t = 0, the following function produces the expected number of remaining syllables (or atoms) y at point in time t:
+The proposed learning function is not merely a convenient mathematical form; it arises naturally from a simple generative account of how skills are built. We refer to this account as the *tweak-finder model*.
 
-$$y = N_0 (1-R)^t$$
-/*Note that this formula is better known in the form y = N_0 exp(rt), which is owing to the fact that many decades ago, computing arbitrary exponential equations was expensive and was usually accomplished by using logarithmic tables, which were either coded with a natural or decimal base. In consequence, parameter r contains the rate of decay, as well as a normalizing factor, which is less intuitive. */
+The model starts from three assumptions. First, complex skills consist of a finite set of possible refinements or *tweaks* to an initial action plan. The initial condition is a pool of undiscovered tweaks and progress in learning is ascribed as discovering these tweaks, which improves performance.
+Second, discovering a tweak is effectively irreversible: once a refinement is found and incorporated, it remains available in future executions. 
+Third, each undiscovered tweak has a fixed probability of being found on any given training trial. While probabilities may differ across tweaks, their average remains stable across the learning process.
+
+Under these assumptions, skill acquisition is not a linear accumulation of improvement but a stochastic search process in a diminishing space of possibilities. Early in training, many tweaks are in the pool, and performance improves rapidly. As training progresses, fewer tweaks remain, and improvements become rarer. Because the set is finite, The resulting trajectory is necessarily asymptotic.
+
+Formally, if the probability that a given tweak survives (i.e., remains undiscovered) from one trial to the next is constant, the expected number of remaining tweaks declines exponentially with training time. Performance, in turn, can be expressed as the sum of a non-trainable component and a trainable component proportional to the number of remaining tweaks. Collapsing the unknown number of initial tweaks and their average effect yields a three-parameter exponential model with a clear psychological interpretation.
+
+
+## A parametric model of continuous learning
+
+To address these issues, we introduce a simple three-parameter model for performance measures that decline with improvement, as is most often the case. Let performance at training time ( t ) be given by
+
+$$
+\text{perf}_t = (1 - \text{learning_rate})^{(t + \text{previous_experience})} + \text{max_performance}.
+$$
+with $0 \leq \text{learning_rate} \leq  1$ and $\text{max_performance} \geq 0$.
+
+This formulation separates three conceptually distinct components of learning.
+
+The parameter **learning_rate** determines how rapidly performance improves with training. It governs the curvature of the learning trajectory and directly corresponds to training efficiency.
+
+The parameter **previous_experience** shifts the learning curve along the time axis, representing effective training that occurred prior to observation. Preparatory exercises, informal practice, or transferable skills are captured as prior exposure measured in units of training time.
+
+The parameter **max_performance** represents the asymptotic lower bound of performance: the level that cannot be surpassed even with unlimited training. It formalizes the notion of a non-trainable component of task execution, arising from anatomical, physiological, or system-level constraints.
+
+Crucially, all three parameters are interpretable on their natural scales. Changes in any one of them have qualitatively distinct effects on the learning trajectory—effects that can be visualized and empirically tested. In the remainder of the paper, we illustrate these effects using simulated and empirical data.
+
+## Outlook
+
+By grounding learning curves in a parametric, generative framework, we can align statistical estimation with substantive questions about selection, efficiency, and transfer. The remainder of this paper develops this approach in detail, illustrates the effects of each parameter, and discusses implications for the design and evaluation of medical training programs.
+
+# Simulation study
+
+To illustrate the model, we simulate a training scenario with three trainees (Li, Wang, Smith) training on a laparoscopic lacing task over 50 trials. All trainees have never performed or assisted during a laparascopy task. Yet, each trainee has different characteristics in terms of learning rate, previous experience, and asymptotic performance. Li ... Wang ... Smith.  
+
+```{r}
+library(tidyverse)
+library(tidytable)
+set.seed(43)
+
+
+Trainees <- 
+  tribble(~Trainee, ~rate, ~pexp, ~asym,       ~length,
+          "Li",      0.10,      23,     0.3,       30,       # has already observed procedures
+          "Smith",   0.05,       7,     0.2,        50,       # little prev exp, slow, high potential
+          "Wang",    0.10,      11,     0.35,        40) |>    # fast learner, less previous experience
+  arrange(Trainee)
+
+```
+
+```{r}
+N_proc <- 100
+lc <- function (t, rate, pexp, asym) {
+  (1 - rate)^(t + pexp) + asym
+}
+
+D_Sim <- 
+  expand_grid(Trainee = Trainees$Trainee, trial = (0:N_proc) - max(Trainees$pexp)) |> 
+  left_join(Trainees) |> 
+  mutate(observed = trial > 0 & trial <= length +1) |> 
+  mutate(Obs = row_number()) |> 
+  mutate(mu = (1 - rate)^(trial + pexp) + asym,
+         duration = rnorm(n(), mu, 1/8 * mu)) |> 
+  mutate(duration = if_else(observed, duration, NA_real_)) |> 
+  select(Obs, Trainee, trial, mu, duration)
+
+D_Sim %>% 
+  ggplot(aes(x = trial, color = Trainee)) +
+  geom_smooth(aes(y = mu), se = F) +
+  geom_point(aes(y= duration), size = 1)
+```
+For the exponential learning curve model it is essential to start from individual-level parameters. Averaging across individuals (and other conditions) is not allowed, because sums and exponentials do not commute. Therefore, all simulations and model estimations are done on the lowest level of observation, which is the individual on a certain task.
+
+For the modelling task it is beneficial to parametrize the model in such a way that all parameters are unbounded on the real line. This makes it easier to formulate multi-level models and priors. while maximum performance and previous experience are bounded to $R⁺$, learning rate is bound by the interval $[0; 1]$. For the zero bounded parameters we use the exponential function to stretch the interval to $R$, whereas the inverse logit function (also known as the logistic probability mass function) is applied to stretch the unit interval to the entire real line. This is very much alike to the link function in Generalized Linear Models. As the learning rate parameter no longer represents a rate, we rename it to *learning_efficiency*.
+
+$$
+\text{perf}_t = (1 - \text{logit}^{-1}\text{learning_efficiency})^{t + \exp \text{previous_experience}} + \exp \text{max_performance}.\\ 
+\text{learning_efficiency} \in R
+$$
+
+```{r}
+library(brms)
+
+
+# priors are on log level!
+F_prior <- c(set_prior("normal(-1, 5)", nlpar = "leff"),
+             set_prior("normal(1, 5)", nlpar = "pexp"),
+             set_prior("normal(1, 5)", nlpar = "maxp"))
+
+F_lc <- bf(
+  duration ~ (1 - inv_logit(leff))^(trial + exp(pexp)) + exp(maxp),
+  leff ~ 1 + (1 | Trainee),
+  pexp ~ 1 + (1 | Trainee),
+  maxp ~ 1 + (1 | Trainee),
+  nl = T
+)
+
+```
+
+## Real data
+
+```{r}
+load("LapTrain.Rda")
+attach(LapTrain)
+D_Lap <<- D_LT |>   
+  rename(duration = ToT, Trainee = Part) |>   
+  mutate(trial = as.integer(trial))
+detach(LapTrain)
+```
+```{r}
+D_Lap 
+```
+
+```{r}
+D_Lap |> 
+  ggplot(aes(x = trial, y = duration)) +
+  geom_point() +
+  geom_smooth(aes(group = Trainee), se = F) +
+  
+```
+
+
+
+```{r eval = F}
+M_2 <- brm(
+  F_lc,
+  data = D_Lap,
+  prior = F_prior,
+  chains = 6,
+  cores = 6,
+  family = lognormal(link = identity),
+  #iter = 5000 ,
+  #warmup = 3000,
+  control = list(adapt_delta = 0.99, max_treedepth = 15)
+)
+save(M_2, D_Lap, file = "M_2.rda")
+
+```
+
+
+```{r}
+library(tidyverse)
+library(bayr)
+load("M_2.rda")
+
+PP_2 <- post_pred(M_2)
+
+predict(PP_2) |> 
+  left_join(D_Lap, by = "Obs") |>
+  ggplot(aes(x = trial, y = center, ymin = lower, ymax = upper)) +
+  geom_line(aes(group = Trainee)) +
+  geom_jitter(aes(y = duration)) +
+  scale_x_discrete()
+
+  
+
+```
+```{r}
+T_1 |> 
+  ggplot(aes(x = trial, y = estimate__)) +
+  facet_wrap(~Trainee) +
+  geom_point(aes(y = duration)) +
+  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = Trainee), alpha = 0.2, color = NA) +
+  geom_line(aes(group = Trainee))
+```
+
+
+
+```{r}
+bind_rows(fixef(M_2), fixef(M_3)) |> 
+  mutate(model = if_else(row_number() <= 3, "M_2", "M_3")) |>
+  ggplot(aes(x = nonlin, y = center, ymin = lower, ymax = upper, color = model)) +
+  geom_pointrange(position = position_dodge(width = .5))
+```
+
+
+
+```{r}
+library(bayr)
+
+ranef(M_2) |> 
+  ggplot(aes(x = nonlin, y = exp(center), ymin = exp(lower), ymax = exp(upper))) +
+  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_y_log10()
+
+```
+
+
+
+
+# A Laparascopy training experiment
+
+
+
+```{r eval = F}
+load("LapTrain.Rda")
+attach(LapTrain)
+D_Lap <<- D_LT |> rename(duration = ToT, Trainee = Part)
+detach(LapTrain)
+
+save(D_Lap, file = "D_Lap.rda")
+```
+
+```{r}
+library(tidyverse)
+
+D_Lap |> 
+  ggplot(aes(x = trial, y = duration, color = Trainee)) +
+  geom_point() +
+  geom_smooth(se = F)
+```
+
+```{r}
+D_Lap |> 
+  ggplot(aes(x = trial, y = duration)) +
+  facet_wrap(~Trainee) +
+  geom_point() +
+  geom_smooth(se = F)
+```
+
+
+```{r}
+load("D_Lap.rda")
+
+M_2 <- brm(
+  F_lc,
+  data = D_Lap,
+  prior = F_prior,
+  family = lognormal(link = identity),
+  chains = 6,
+  cores = 6,
+  #iter = 5000 ,
+  #warmup = 3000,
+  control = list(adapt_delta = 0.99, max_treedepth = 15)
+)
+
+save(M_2, D_2, file = "M_2.rda")
+```
+
+## Population level effects
+
+```{r}
+fixef(M_2)
+```
+
+
+```{r}
+grpef(M_2)
+```
+
+```{r}
+fixef(M_2) |>  
+  left_join(grpef(M_2), 
+            by = "nonlin", suffix = c("_pop", "_sd")) |> 
+  mutate(mu = exp(center_pop),
+         mu = if_else(nonlin == "leff", mu/(mu + 1), mu)) |> 
+  select(nonlin, mu, 
+         center_pop:upper_pop, 
+         center_sd:upper_sd) |> 
+  knitr::kable()
+
+```
+
+
+
+
+## Trainee level effects
+
+
+```{r}
+ranef(M_2) |> 
+  ggplot(aes(x = nonlin)) +
+  geom_pointrange(aes(y = center, ymin = lower, ymax = upper, group = re_entity),
+                  position = position_dodge(width = .5))
+```
+
+## Predictions 
+
+```{r}
+PP_1 <- post_pred(M_2)
+```
+```{r}
+D_2 |>
+  left_join(predict(PP_1), by = "Obs") |> 
+  ggplot(aes(x = trial, y = value, color = Trainee)) +
+  geom_smooth()
+```
+
+
+
+
+<!--## A macro theory of skill acquisition
+
+The model introduced in this section dates back to a classic psychological experiment on the human memory. In self-experiments Ebbinghaus memorized sets of nonsense syllables and measured the number of correctly recalled syllables over time. The result is a decay curve taking the same shape that describes radioactive decay (which was only discovered a decade later). With R the rate of decay and N_0 the number of syllables (or atoms) at time t = 0, the following function produces the expected number of remaining syllables (or atoms) y at point in time t:
+
+$$y = N_0 (1-R)^t$$ -->
+<!--Note that this formula is better known in the form y = N_0 exp(rt), which is owing to the fact that many decades ago, computing arbitrary exponential equations was expensive and was usually accomplished by using logarithmic tables, which were either coded with a natural or decimal base. In consequence, parameter r contains the rate of decay, as well as a normalizing factor, which is less intuitive.
 
 
 Training is building up skills, which is the opposite of decay. By a slight change in semantics it can be described as a process of decay. If we imagine that the performance we see at one time in the process, is the sum of many small performance enhancing tricks that have been discovered at an earlier moment. If we further assume that the set of possible tricks is finite (N_0), with a constant probability to be discovered (R), and that the performance measure becomes zero, when all tricks have been found, the decay model applies in the given form. However, in the context of a discovery process (rather than disappearance), it is more convenient to interpret 
@@ -41,9 +356,9 @@ Amplitude: amount of possible improvement at the start, positive number
 …
 Rate: the proportion found of remaining tricks
 …
-Asymptote: maximum performance, positive
+Asymptote: maximum performance, positive*/
 
-
+*/
 
 ## Exponential learning curve models
 
