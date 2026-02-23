@@ -1,14 +1,44 @@
 ---
-title: Parametric learning curve models for surgery training research
+title: Parametric learning curve models for simulation-based surgery training
 authors:
   - name: Martin Schmettow
-    affiliation: University of Twente
+    id: ut
+    orcid: 0000-0003-0240-4087
+    email: m.schmettow@utwente.nl
+    affiliation: 
+      - name: University of Twente
+        city: Enschede, NL
+        url: www.utwente.nl
+    attributes:
+        corresponding: true
     roles: writing
-    corresponding: true
   - name: Marleen Groenier
     affiliation: University of Twente
     roles: writing
     corresponding: false
+keywords:
+  - Training
+  - Surgery
+  - Learning curves
+#format: docx
+format: pdf
+#format:
+#  elsevier-pdf:
+#    keep-tex: true
+#    journal:
+#      name: PsyRxiv
+#      formatting: review
+#      model: 1p # Don't set a model with preprint
+#      cite-style: authoryear
+date: last-modified
+execute:
+  echo: false
+  warning: false
+  message: false
+  cache: true
+
+abstract: |
+
 bibliography: references.bib
 ---
 
@@ -36,7 +66,7 @@ A brief look at the learning-curve literature in medical education reveals a str
 
 Such approaches have two fundamental limitations.
 
-First, **previous experience and learning rate are inseparable** in linear endpoint analyses. A trainee who starts at a better performance level due to prior exposure or positive transfer will often appear to “learn faster,” even if the underlying learning dynamics are identical. Conversely, a genuinely low learning rate cannot be distinguished from a advanced learner, already approaching the asmptote. Without an explicit model that accounts for horizontal shifts in training time, these effects are confounded by design.
+First, **previous experience and learning rate are inseparable** in linear endpoint analyses. A trainee who starts at a better performance level due to prior exposure or positive transfer will often appear to “learn slow,” even if the underlying learning dynamics are identical. Conversely, a genuinely low learning rate cannot be distinguished from a advanced learner, already approaching the asmptote. Without an explicit model that accounts for horizontal shifts in training time, these effects are confounded by design.
 
 Second, **maximum performance cannot be predicted at all**. Linear models either imply unbounded improvement or require an arbitrary stopping rule. Endpoint analyses implicitly assume that the observed endpoint is informative about ultimate performance, an assumption that is rarely justified, especially in long training trajectories where asymptotic performance may lie far beyond the observation window.
 
@@ -50,65 +80,134 @@ The model starts from three assumptions. First, complex skills consist of a fini
 Second, discovering a tweak is effectively irreversible: once a refinement is found and incorporated, it remains available in future executions. 
 Third, each undiscovered tweak has a fixed probability of being found on any given training trial. While probabilities may differ across tweaks, their average remains stable across the learning process.
 
-Under these assumptions, skill acquisition is not a linear accumulation of improvement but a stochastic search process in a diminishing space of possibilities. Early in training, many tweaks are in the pool, and performance improves rapidly. As training progresses, fewer tweaks remain, and improvements become rarer. Because the set is finite, The resulting trajectory is necessarily asymptotic.
+Under these assumptions, skill acquisition is not a linear accumulation of improvement but a stochastic search process in a diminishing space of possibilities. Early in training, many tweaks are in the pool, and performance improves rapidly. As training progresses, fewer tweaks remain, and improvements become rarer.
 
 Formally, if the probability that a given tweak survives (i.e., remains undiscovered) from one trial to the next is constant, the expected number of remaining tweaks declines exponentially with training time. Performance, in turn, can be expressed as the sum of a non-trainable component and a trainable component proportional to the number of remaining tweaks. Collapsing the unknown number of initial tweaks and their average effect yields a three-parameter exponential model with a clear psychological interpretation.
 
 
 ## A parametric model of continuous learning
 
-To address these issues, we introduce a simple three-parameter model for performance measures that decline with improvement, as is most often the case. Let performance at training time ( t ) be given by
+To address these issues, we introduce a simple three-parameter model for performance measures that decline with improvement, as is most often the case. Let performance at training trial $t$ be given by
 
 $$
-\text{perf}_t = (1 - \text{learning_rate})^{(t + \text{previous_experience})} + \text{max_performance}.
+\text{perf}(t) = (1 - \text{leff})^{(t + \text{pexp})} + \text{maxp}.
 $$
-with $0 \leq \text{learning_rate} \leq  1$ and $\text{max_performance} \geq 0$.
+with $0 \leq \text{leff} \leq  1$ and $\text{maxp} \geq 0$.
 
 This formulation separates three conceptually distinct components of learning.
 
-The parameter **learning_rate** determines how rapidly performance improves with training. It governs the curvature of the learning trajectory and directly corresponds to training efficiency.
+The parameter **previous experience** shifts the learning curve along the axis of trials axis, representing effective training that occurred prior to observation. Preparatory exercises, informal practice, or transferable skills are captured as prior exposure measured in units of training. For example, it would be fair to say: "Two days using a box trainer is equivalent to 10 trials on the VR simulator."
 
-The parameter **previous_experience** shifts the learning curve along the time axis, representing effective training that occurred prior to observation. Preparatory exercises, informal practice, or transferable skills are captured as prior exposure measured in units of training time.
+The parameter **learning efficiency** determines how rapidly performance improves with training. It governs the curvature of the learning trajectory and directly corresponds with measuring training efficiency.
 
-The parameter **max_performance** represents the asymptotic lower bound of performance: the level that cannot be surpassed even with unlimited training. It formalizes the notion of a non-trainable component of task execution, arising from anatomical, physiological, or system-level constraints.
+The parameter **maximum performance** represents the asymptotic lower bound of performance (with lower numbers being better): the level that cannot be surpassed even with unlimited training. It formalizes the notion of a non-trainable component of task execution, arising from anatomical, physiological, or system-level constraints.
 
-Crucially, all three parameters are interpretable on their natural scales. Changes in any one of them have qualitatively distinct effects on the learning trajectory—effects that can be visualized and empirically tested. In the remainder of the paper, we illustrate these effects using simulated and empirical data.
+Crucially, all three parameters are interpretable on their natural scales. Changes in any one of them have qualitatively distinct effects on the learning trajectory—effects that can be visualized and empirically tested. In the remainder of the paper, we illustrate these effects using simulated and give an example based on data collected with a laparascopy simulator.
+
 
 ## Outlook
 
 By grounding learning curves in a parametric, generative framework, we can align statistical estimation with substantive questions about selection, efficiency, and transfer. The remainder of this paper develops this approach in detail, illustrates the effects of each parameter, and discusses implications for the design and evaluation of medical training programs.
 
+```{r}
+#| label: fig-anatomy
+#| fig.height: 6
+#| fig.width: 6
+#| fig-cap: "Observed duration to task completion with LOESS overlay."
+
+
+library(tidyverse)
+lc <- function (t, rate, pexp, maxp) {
+  (1 - rate)^(t + pexp) + maxp
+}
+
+set.seed(43)
+
+rate <- 0.20
+pexp <- 5
+maxp <- 0.2
+n_trials <- 20
+
+D_0 <- tibble(  trial = -5:n_trials, performance = lc(trial, rate, pexp, maxp)) |> 
+  mutate(obs = if_else(trial > 0, rnorm(n(), performance, 0.02), NA))
+
+D_0 |> 
+  ggplot(aes(x = trial, y = performance)) +
+  geom_point(aes(y = obs)) +
+  geom_line() +
+  xlim(-8, 25) +
+  ylim(0, 1.2) +
+  geom_vline(aes(xintercept = 0)) +
+  geom_hline(aes(yintercept = 0)) +
+  geom_segment(x = -pexp, y = maxp, xend = 0,  
+               aes(colour = "previous experience"),
+               arrow = arrow()) +
+  geom_segment(x = -pexp, y = 0, xend = -pexp, yend = maxp, 
+               aes(colour = "previous experience"),
+               linetype = "dashed") +
+  #geom_vline(xintercept = -5, aes(color = "zero experience"), 
+  #           linetype = "dashed") +
+  #geom_hline(aes(yintercept = maxp, color = "max performance"), linetype = "dashed") +
+  geom_segment(x = 0, y = maxp, xend = n_trials,
+               aes(color = "max performance"), linetype = "dashed") +
+  geom_segment(x = n_trials, y = 0, yend = maxp,
+               aes(color = "max performance"),
+               arrow = arrow()) +
+  geom_abline(aes(color = "learning rate", slope = -0.06, intercept = 0.53)) +
+  labs(x = "Training time", y = "Performance", color = "Learning parameter") +
+  theme(legend.position = c(0.8, 0.8))
+  
+  
+  
+
+```
+
+[fig: A learning curve with three parameters. The dashed lines illustrate the effects of each parameter on the learning trajectory. Previous experience shifts the curve horizontally, maximum performance sets a lower bound on performance, and learning rate determines the curvature of the trajectory.]
+
 # Simulation study
 
-To illustrate the model, we simulate a training scenario with three trainees (Li, Wang, Smith) training on a laparoscopic lacing task over 50 trials. All trainees have never performed or assisted during a laparascopy task. Yet, each trainee has different characteristics in terms of learning rate, previous experience, and asymptotic performance. Li ... Wang ... Smith.  
+To illustrate the model, we simulate a training scenario with three trainees (Li, Wang, Smith) training on a laparoscopic task. Yet, each trainee has different characteristics, which are located in the past (previous experience), in the present (learning efficiency) and in the future (maximum performance).
+Li and Wand have already assisted during laparascopy procedures, whereas Smith only did a short prior training using a low fidelity box trainer. In effect, the learning curves appear shifted to the left in the order Li, Wang, Smith.
+Li started on a very good performance level, but due to the amount of previous experience made little progress anymore; in consequence the training was stopped after 20 trials.
+Wang showed moderate performance in the first trial but due to the lower previous experience, he progressed more quickly than Li. In the first trial to reach a stable level after 20 (of 30) trials.
+Smith started with little previous experience and due to her ADHD condition progressed rather slowly. During the first ten trials her performance even diverged further from Wang. However, Smith continues to improve steadily and starts outperforming Wang after 25 trial. When she reached the level of Li, the training was stopped, although it seemed she improve further.
 
 ```{r}
+#| label: tbl-sim-parameters
+#| message: false
+#| warning: false
+#| paged-print: true
+#| #tbl-colwidths: [15, 25, 25, 10, 10, 10, 10]
+#| tbl-cap: "Three hypothetical trainees with different learning parameters."
+#| 
 library(tidyverse)
 library(tidytable)
 set.seed(43)
 
 
 Trainees <- 
-  tribble(~Trainee, ~rate, ~pexp, ~asym,       ~length,
-          "Li",      0.10,      23,     0.3,       30,       # has already observed procedures
-          "Smith",   0.05,       7,     0.2,        50,       # little prev exp, slow, high potential
-          "Wang",    0.10,      11,     0.35,        40) |>    # fast learner, less previous experience
-  arrange(Trainee)
+  tribble(~Trainee, ~leff, ~pexp, ~asym,       ~length,
+          "Li",      0.10,      15,     0.3,       20,       # has already observed procedures
+          "Smith",   0.05,       5,     0.2,        40,       # little prev exp, slow, high potential
+          "Wang",    0.10,      10,     0.35,        25) |>    # fast learner, less previous experience
+  arrange(Trainee) |> 
+  select(Trainee, pexp, leff, asym, length)
 
 ```
 
+
+
+
 ```{r}
 N_proc <- 100
-lc <- function (t, rate, pexp, asym) {
-  (1 - rate)^(t + pexp) + asym
-}
 
 D_Sim <- 
-  expand_grid(Trainee = Trainees$Trainee, trial = (0:N_proc) - max(Trainees$pexp)) |> 
+  expand_grid(Trainee = Trainees$Trainee, 
+              trial = (0:N_proc) - max(Trainees$pexp)) |> 
   left_join(Trainees) |> 
   mutate(observed = trial > 0 & trial <= length +1) |> 
   mutate(Obs = row_number()) |> 
-  mutate(mu = (1 - rate)^(trial + pexp) + asym,
+  mutate(mu = (1 - leff)^(trial + pexp) + asym,
          duration = rnorm(n(), mu, 1/8 * mu)) |> 
   mutate(duration = if_else(observed, duration, NA_real_)) |> 
   select(Obs, Trainee, trial, mu, duration)
@@ -118,56 +217,172 @@ D_Sim %>%
   geom_smooth(aes(y = mu), se = F) +
   geom_point(aes(y= duration), size = 1)
 ```
-For the exponential learning curve model it is essential to start from individual-level parameters. Averaging across individuals (and other conditions) is not allowed, because sums and exponentials do not commute. Therefore, all simulations and model estimations are done on the lowest level of observation, which is the individual on a certain task.
 
-For the modelling task it is beneficial to parametrize the model in such a way that all parameters are unbounded on the real line. This makes it easier to formulate multi-level models and priors. while maximum performance and previous experience are bounded to $R⁺$, learning rate is bound by the interval $[0; 1]$. For the zero bounded parameters we use the exponential function to stretch the interval to $R$, whereas the inverse logit function (also known as the logistic probability mass function) is applied to stretch the unit interval to the entire real line. This is very much alike to the link function in Generalized Linear Models. As the learning rate parameter no longer represents a rate, we rename it to *learning_efficiency*.
+
+
+# Building multi-level learning curve models
+
+For the inverse exponential learning curve model it is essential to start from individual curves. Averaging across individuals and estimate population level learning curves is not allowed, because sums and exponentials do not commute. Therefore, all simulations and model estimations are done on the lowest level of observation, which in the following is the individual $i$ on a fixed task.
+In the following we will demonstrate the building blocks of multi-level learning curve models.
+
+## Scaling
+
+The three-parameter model is not flexible enough to fit real data, because it does not allow for a scale factor to accommodate real measurements. In particular,
 
 $$
-\text{perf}_t = (1 - \text{logit}^{-1}\text{learning_efficiency})^{t + \exp \text{previous_experience}} + \exp \text{max_performance}.\\ 
-\text{learning_efficiency} \in R
+\text{perf}_i(1 -\text{pexp}_i) = 1 - \text{leff}_i + \text{maxp}_i < \text{maxp}_i + 1
 $$
+
+, which means the model cannot fit learning curves than span more than a unit.
+To eliminate the problem, we introduce a scale parameter, which is a population-level parameter, shared across all trainees. The model formula for trainee $i$ becomes:
+
+$$
+\text{perf}_i(t) = 
+(1 - \text{leff}_i)^
+{t + \text{pexp}_i} 
+\text{scale}
++ \text{maxp}_i.
+$$
+
+## Unbounding parameters
+
+For the modelling task it is beneficial to parametrize the model in such a way that all parameters are unbounded on the real line. This makes it possible to use Gaussian priors and random effects throughout. In addition a parameter must be added to work with existing scales of performance.
+
+Maximum performance and previous experience are bounded to $R⁺$. In order to stretch them into the entire real line the natural exponent is use. 
+Learning efficiency is bound by the unit interval $[0; 1]$ and can be extended to the real line be using the inverse logit function (also known as the probability mass function of logistic distributions).
+
+With these transformations the likelihood function becomes
+
+$$
+\text{perf}_i(t) = 
+(1 - \text{logit}^{-1}\text{leff}_i)^
+{t + \exp \text{pexp}_i}
+\exp \text{scale}
++ \exp \text{maxp}_i.
+$$
+
+## Model formulation
+
+To formulate a multi-level model for the simulated data, the likelihood formula is required, as well as random effects specifications and, for Bayesian models, prior distributions. With unbounded parameters, Gaussian random effects can be specified as follows:
+
+$$
+\text{pexp}_i \sim N(\mu_{\text{pexp}}, \sigma_{\text{pexp}})\\
+\text{leff}_i \sim N(\mu_{\text{leff}}, \sigma_{\text{leff}})\\
+\text{maxp}_i \sim N(\mu_{\text{maxp}}, \sigma_{\text{maxp}})\\
+$$
+Prior distributions capture the state of knowledge about the parameters before seeing any data. In the absence of strong prior knowledge, weakly informative priors are commonly employed, having only a regularizing effect on the model estimation. In the present case, we might specify weakly informative Gaussian priors, which are centered around plausible values with relatively large standard deviation to capture the state of high uncertainty. Since parameters have been transformed, mean and standard deviation are specified on the logarithmic scale.
+
+$$
+\mu_{\text{leff}} \sim N(-1, 5)\\
+\mu_{\text{pexp}} \sim N(1, 5)\\
+\mu_{\text{maxp}} \sim N(1, 5)\\
+\text{scale} \sim N(1, 5)\\
+$$
+Finally, the distribution of the outcome variable must be specified. For time on task, a log-normal distribution is often appropriate, as it captures the positive skew commonly observed in performance data. As a fat-tailed distribution, it is also relatively robust to outliers. Since the likelihood function is guaranteed to produce positive values, the identity link function can be used directly without additional transformations.
+
 
 ```{r}
 library(brms)
 
-
 # priors are on log level!
 F_prior <- c(set_prior("normal(-1, 5)", nlpar = "leff"),
              set_prior("normal(1, 5)", nlpar = "pexp"),
-             set_prior("normal(1, 5)", nlpar = "maxp"))
+             set_prior("normal(1, 5)", nlpar = "maxp"),
+             set_prior("normal(1, 5)", nlpar = "scale") # population level!
+             ) 
+
 
 F_lc <- bf(
-  duration ~ (1 - inv_logit(leff))^(trial + exp(pexp)) + exp(maxp),
+  duration ~ (1 - inv_logit(leff)) ^(trial + exp(pexp))* exp(scale) + exp(maxp),
   leff ~ 1 + (1 | Trainee),
   pexp ~ 1 + (1 | Trainee),
   maxp ~ 1 + (1 | Trainee),
+  scale ~ 1, # population level!
   nl = T
 )
 
 ```
 
-## Real data
+
+```{r eval = FALSE}
+M_Sim <- brm(
+  F_lc,
+  data = D_Sim,
+  prior = F_prior,
+  chains = 6,
+  cores = 6,
+  iter = 16000,
+  warmup = 12000,
+  family = lognormal(link = identity),
+  control = list(adapt_delta = 0.999999, max_treedepth = 15))
+```
+
+
+
+# Applications in Laparascopy training
+
+In the area of research and testing of training methods, a whole range of possibilities opens up, as the three aspects of learning can be considered separately. With pexp it is possible to investigate positive transfer effects. For example, one can expect a positive parameter for a trainee which already has prior experience on a siomulator or box trainer. With leff it is possible to compare different training methods, curricula, or feedback regimes in terms of how quickly they lead to improvement. With maxp and it becomes possible to predict the future of a trainee, which can be useful to select trainees based on their potential.
+
+The following study aimed to investigate the extent to which so-called innate abilities (spatial rotation speed, visual working memory) play a role in learning laparoscopy. Since this proved not to be the case, we place the same data in a hypothetical competitive context, asking: Which trainee learns the fastest (leff) and which trainee has the greatest potential (maxp)? Since all trainees were absolute beginners, pexp is expected to be close to zero for all trainees.
+
+## Exploration
 
 ```{r}
+#| eval: FALSE
 load("LapTrain.Rda")
 attach(LapTrain)
 D_Lap <<- D_LT |>   
   rename(duration = ToT, Trainee = Part) |>   
   mutate(trial = as.integer(trial))
 detach(LapTrain)
-```
-```{r}
-D_Lap 
+save(D_Lap, file = "D_Lap.Rda")
 ```
 
 ```{r}
+#| eval: FALSE
+sample_n(D_Lap, 10)
+```
+
+```{r}
+#| label: fig-lap-loess
+#| fig.height: 4
+#| fig.width: 6
+#| fig-cap: "Observed duration to task completion with LOESS overlay."
+
+load("D_Lap.Rda")
 D_Lap |> 
   ggplot(aes(x = trial, y = duration)) +
   geom_point() +
   geom_smooth(aes(group = Trainee), se = F) +
+  facet_wrap(~Trainee)
   
 ```
 
+
+
+## Fitted learning curves
+
+```{r}
+library(brms)
+
+# priors are on log level!
+F_prior <- c(set_prior("normal(0, 5)", nlpar = "leff"),
+             set_prior("normal(0, 5)", nlpar = "pexp"),
+             set_prior("normal(0, 5)", nlpar = "maxp"),
+             set_prior("normal(0, 5)", nlpar = "scale")
+             ) 
+
+
+F_lc <- bf(
+  duration ~ exp(scale) * (1 - inv_logit(leff))^(trial + exp(pexp)) + exp(maxp),
+  leff ~ 1 + (1 | Trainee),
+  pexp ~ 1 + (1 | Trainee),
+  maxp ~ 1 + (1 | Trainee),
+  scale ~ 1, # population level!
+  nl = T
+)
+
+```
 
 
 ```{r eval = F}
@@ -175,136 +390,95 @@ M_2 <- brm(
   F_lc,
   data = D_Lap,
   prior = F_prior,
-  chains = 6,
-  cores = 6,
   family = lognormal(link = identity),
-  #iter = 5000 ,
-  #warmup = 3000,
-  control = list(adapt_delta = 0.99, max_treedepth = 15)
-)
+  chains = 8,
+  cores = 8,
+  iter = 5000,
+  warmup = 4000,
+  control = list(adapt_delta = 0.9999, max_treedepth = 15))
 save(M_2, D_Lap, file = "M_2.rda")
+
+## Removing first two trials as comprehension phase
+D_3 <- D_Lap[D_Lap$trial > 1, ]
+M_3 <- update(M_2, newdata = D_3,
+            chains = 8,
+            cores = 8,
+            iter = 8000,
+            warmup = 6000,
+            control = list(adapt_delta = 0.9999, max_treedepth = 15))
+save(M_3, D_3, file = "M_3.rda")
+
+## Predicting after 10 trials, fierrst removed
+D_4 <- D_Lap[D_Lap$trial > 1 & D_Lap$trial < 8, ]
+M_4 <- update(M_2, newdata = D_4,
+            chains = 8,
+            cores = 8,
+            iter = 8000,
+            warmup = 6000,
+            control = list(adapt_delta = 0.9999, max_treedepth = 15))
+save(M_4, D_Lap, file = "M_4.rda")
+
+## Predicting after 10 trials, fierrst removed
+D_5 <- D_Lap[D_Lap$trial < 8, ]
+M_5 <- update(M_2, newdata = D_5,
+            chains = 8,
+            cores = 8,
+            iter = 8000,
+            warmup = 6000,
+            control = list(adapt_delta = 0.9999, max_treedepth = 15))
+save(M_5, D_Lap, file = "M_5.rda")
 
 ```
 
 
 ```{r}
+#| label: fig-fitted
+#| fig.height: 6
+#| fig.width: 6
+#| fig-cap: "Fitted individual learning curves"
+
 library(tidyverse)
 library(bayr)
 load("M_2.rda")
 
+
 PP_2 <- post_pred(M_2)
 
 predict(PP_2) |> 
-  left_join(D_Lap, by = "Obs") |>
-  ggplot(aes(x = trial, y = center, ymin = lower, ymax = upper)) +
-  geom_line(aes(group = Trainee)) +
-  geom_jitter(aes(y = duration)) +
-  scale_x_discrete()
-
-  
-
-```
-```{r}
-T_1 |> 
-  ggplot(aes(x = trial, y = estimate__)) +
+  left_join(D_Lap) |> 
+  ggplot(aes(x = trial, y = center)) +
   facet_wrap(~Trainee) +
+  geom_line() +
   geom_point(aes(y = duration)) +
-  geom_ribbon(aes(ymin = lower__, ymax = upper__, fill = Trainee), alpha = 0.2, color = NA) +
-  geom_line(aes(group = Trainee))
-```
-
-
-
-```{r}
-bind_rows(fixef(M_2), fixef(M_3)) |> 
-  mutate(model = if_else(row_number() <= 3, "M_2", "M_3")) |>
-  ggplot(aes(x = nonlin, y = center, ymin = lower, ymax = upper, color = model)) +
-  geom_pointrange(position = position_dodge(width = .5))
-```
-
-
-
-```{r}
-library(bayr)
-
-ranef(M_2) |> 
-  ggplot(aes(x = nonlin, y = exp(center), ymin = exp(lower), ymax = exp(upper))) +
-  geom_pointrange(position = position_dodge(width = .5)) +
+  scale_x_discrete() +
   scale_y_log10()
 
 ```
 
 
 
-
-# A Laparascopy training experiment
-
-
-
-```{r eval = F}
-load("LapTrain.Rda")
-attach(LapTrain)
-D_Lap <<- D_LT |> rename(duration = ToT, Trainee = Part)
-detach(LapTrain)
-
-save(D_Lap, file = "D_Lap.rda")
-```
-
-```{r}
-library(tidyverse)
-
-D_Lap |> 
-  ggplot(aes(x = trial, y = duration, color = Trainee)) +
-  geom_point() +
-  geom_smooth(se = F)
-```
-
-```{r}
-D_Lap |> 
-  ggplot(aes(x = trial, y = duration)) +
-  facet_wrap(~Trainee) +
-  geom_point() +
-  geom_smooth(se = F)
-```
-
-
-```{r}
-load("D_Lap.rda")
-
-M_2 <- brm(
-  F_lc,
-  data = D_Lap,
-  prior = F_prior,
-  family = lognormal(link = identity),
-  chains = 6,
-  cores = 6,
-  #iter = 5000 ,
-  #warmup = 3000,
-  control = list(adapt_delta = 0.99, max_treedepth = 15)
-)
-
-save(M_2, D_2, file = "M_2.rda")
-```
-
 ## Population level effects
 
 ```{r}
-fixef(M_2)
+#| label: tbl-fixef
+#| tbl-cap: "Population level effects of the learning curve model (M_2) back-tarsformed to original scales."
+
+
+T_fixef <- fixef(M_2, mean.func = exp) |> 
+  mutate(across(c(center, lower, upper)), ~ if_else(nonlin == "leff", .x/(.x + 1), .x)) |>
+  select(nonlin, center, lower, upper)
 ```
 
+@tbl-fixef shows the population-level estimates, representing the average learning curve. Learning efficiency is $`r T_fixef$center[1]`$, which means that every new trial cuts task duration to slightly more than a half (relative to maxp), with some uncertainty about the true value. Previous experience is estimated to practically zero. Maximum performance is estimated to be slightly less than a minute ($`r T_fixef$center[3]`$), with high certainty.
 
-```{r}
-grpef(M_2)
-```
-
-```{r}
+```{r eval = F}
 fixef(M_2) |>  
   left_join(grpef(M_2), 
-            by = "nonlin", suffix = c("_pop", "_sd")) |> 
-  mutate(mu = exp(center_pop),
+            by = "nonlin", suffix = c("_mu", "_sd")) |> 
+  mutate(mu = exp(center_mu),
          mu = if_else(nonlin == "leff", mu/(mu + 1), mu)) |> 
   select(nonlin, mu, 
-         center_pop:upper_pop, 
+         center_mu:upper_mu, 
          center_sd:upper_sd) |> 
   knitr::kable()
 
@@ -315,27 +489,66 @@ fixef(M_2) |>
 
 ## Trainee level effects
 
+Trainee-level random effects represent the deviation of each trainee from the population-level learning curve. For example, a positive random effect for learning efficiency indicates that a trainee learns faster than average. 
+
 
 ```{r}
-ranef(M_2) |> 
-  ggplot(aes(x = nonlin)) +
-  geom_pointrange(aes(y = center, ymin = lower, ymax = upper, group = re_entity),
-                  position = position_dodge(width = .5))
+ranef(M_2, mean.func = exp) |> 
+  
+  mutate(Trainee = re_entity) |> 
+  ggplot(aes(x = Trainee)) +
+  facet_wrap(~nonlin, scales = "free_y") +
+  geom_pointrange(aes(y = center, ymin = lower, ymax = upper, group = Trainee)) +
+  labs(y = "multiplier")
 ```
 
-## Predictions 
+## Predictions and biases
+
+If the question of the study is to predict future performance, it is important to know how much data is required to make useful predictions and whether any biases exist with shorter learning sequences. As we do not have a ground truth to compare the predictions to, we can only compare the estimates of the model when fitted to incomplete data. In the following, we compare the estimates of the model to estimates of the same model but with the data reduced to the first .
+
 
 ```{r}
-PP_1 <- post_pred(M_2)
+#| label: fig-robustness-pop
+#| fig.height: 4
+#| fig.width: 6
+#| fig-cap: "Robustness of the  model to deviatioting first trials (M_3)"
+
+load("M_5.rda")
+
+P_2 <- posterior(M_2)
+#P_3 <- posterior(M_3)
+#P_4 <- posterior(M_4)
+P_5 <- posterior(M_5)
+
+P_ <- bind_rows(P_2, P_5) |> posterior()
+
+fixef(P_, mean.func = exp) |>
+  mutate(Trainee = re_entity) |>
+  ggplot(aes(x = model, color = nonlin)) +
+  geom_pointrange(aes(y = center, ymin = lower, ymax = upper, group = nonlin)) +
+  geom_line(aes(y = center, x = model, group = nonlin))
 ```
+
+
+
 ```{r}
-D_2 |>
-  left_join(predict(PP_1), by = "Obs") |> 
-  ggplot(aes(x = trial, y = value, color = Trainee)) +
-  geom_smooth()
+#| label: fig-robustness-part
+#| fig.height: 4
+#| fig.width: 6
+#| fig-cap: "Robustness of the  model to deviatioting first trials (M_3)"
+
+ranef(P_) |>
+  mutate(Trainee = re_entity) |>
+  ggplot(aes(y = center, x = model, color = nonlin)) +
+  facet_wrap(~nonlin, scales = "free_y") +
+  geom_line(aes(group = Trainee)) +
+  geom_label(aes(label = Trainee), size = 2)
 ```
 
 
+Comparing M_5 to M_2 in [@fig-robustness] shows to main patterns: With only seven trials the rank order of the trainees is already stable on all three parameters, with only two outliers (trainees 19 and 10).
+Second, all three parameters regress towards the mean when less data is available. This is not a bias, but a feature of multi-level moddels called shrinkage: with less individual data, trainee-level parameters regress towards the population mean. This is a desirable property for a predictive system as can be seen at two extreme: if a decision maker had to predict the performance  of the next trainee *before* any individual data becomes available, the best guess would the average learning curve [@tbl-fixef]. In another sense of the extreme, measures in the early trials are often volatile, introducing the risk to overfit to early performance. By only gradually giving more weight to the individual parameters, the model predictions are always conservative. 
+Shrinkage also allows the researcher to perform pairwise comparison without having to adjust for multiple comparisons, which is immediatly relevant for trainee selection.
 
 
 <!--## A macro theory of skill acquisition
@@ -367,7 +580,7 @@ Exponential processes are ubiquitous in nature. In its most purest form it can b
 $$n = a(1-d)^t$$
 where: $0 \leq d \leq 1 $ and $a \geq 0$ and $t \in N$.
 
-Projected to the pool of potential tweaks, this model describes how many tweaks are initially in the pool as $a - Y$. Trainees with larger values have more potential to improve, but they also start from a low initial performance (expressed as a large number). As we assume a fixed size pool $a_T$ for a given task, the only useful interpretation of $a \lt a_T $ is that some tweaks were discovered before $t = 0$, which means it is an inverse measure of previous experience. A simple re-arrangement of the formula improves the expressiveness of the model wrt. previous experience:
+Projected to the pool of potential tweaks, this model describes how many tweaks are initially in the pool as $a - Y$. Trainees with larger values have more potential to improve, but they also start from a low initial performance (expressed as a large number). As we assume a fixed size pool $a_T$ for a given task, the only useful interpretation of $a< a_T $ is that some tweaks were discovered before $t = 0$, which means it is an inverse measure of previous experience. A simple re-arrangement of the formula improves the expressiveness of the model wrt. previous experience:
 
 $$f(t) = (1-p)^{(p + t)}$$
 where: $e = \log_p(a)$.
