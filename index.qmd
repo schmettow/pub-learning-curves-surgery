@@ -1,6 +1,6 @@
 ---
 title: Parametric learning curve models for simulation-based surgery training
-authors:
+author:
   - name: Martin Schmettow
     id: ut
     orcid: 0000-0003-0240-4087
@@ -11,35 +11,42 @@ authors:
         url: www.utwente.nl
     attributes:
         corresponding: true
-    roles: writing
   - name: Marleen Groenier
-    affiliation: University of Twente
-    roles: writing
-    corresponding: false
+    id: ut
+    #orcid: 0000-0001-8154-1068
+    email: m.groenier@utwente.nl
+    affiliation: 
+      - name: University of Twente
+        city: Enschede, NL
+        url: www.utwente.nl
+  - name: Russell W. Chan
+    id: ut
+    #orcid: 0000-0002-3591-3577
+    email: r.w.chan@utwente.nl
+    affiliation: 
+      - name: University of Twente
+        city: Enschede, NL
+        url: www.utwente.nl
 keywords:
   - Training
-  - Surgery
   - Learning curves
-#format: docx
-format: pdf
+  - Multi-levbel models
+format: docx
 #format:
 #  elsevier-pdf:
 #    keep-tex: true
 #    journal:
 #      name: PsyRxiv
 #      formatting: review
-#      model: 1p # Don't set a model with preprint
+#      #model: 1p # Don't set a model with preprint
 #      cite-style: authoryear
+bibliography: references.bib
 date: last-modified
 execute:
   echo: false
   warning: false
   message: false
   cache: true
-
-#abstract: |
-
-bibliography: references.bib
 ---
 
 # Introduction
@@ -227,14 +234,9 @@ In the following we will demonstrate the building blocks of multi-level learning
 
 ## Scaling
 
-The three-parameter model is not flexible enough to fit real data, because it does not allow for a scale factor to accommodate real measurements. In particular,
+The three-parameter model is not flexible enough to fit real data, because it does not allow for a scale factor to accommodate real measurements. More precisely, the model cannot fit learning curves with $\text{perf} > 1$.
 
-$$
-\text{perf}_i(1 -\text{pexp}_i) = 1 - \text{leff}_i + \text{maxp}_i < \text{maxp}_i + 1
-$$
-
-, which means the model cannot fit learning curves than span more than a unit.
-To eliminate the problem, we introduce a scale parameter, which is a population-level parameter, shared across all trainees. The model formula for trainee $i$ becomes:
+To eliminate this problem, a a fourth parameter *scale* is introduced. If this parameter were allowed to vary across trainees,  the model would be partly unidentifiable, as the same learning curve can be produced by different combinations of scale and pexp. To mitigate this issue, scale enters the estimation as a population-level parameter, such that the formula for trainee $i$ becomes:
 
 $$
 \text{perf}_i(t) = 
@@ -418,7 +420,7 @@ M_4 <- update(M_2, newdata = D_4,
             control = list(adapt_delta = 0.9999, max_treedepth = 15))
 save(M_4, D_Lap, file = "M_4.rda")
 
-## Predicting after 10 trials, fierrst removed
+## Predicting with first 7 trials
 D_5 <- D_Lap[D_Lap$trial < 8, ]
 M_5 <- update(M_2, newdata = D_5,
             chains = 8,
@@ -426,7 +428,19 @@ M_5 <- update(M_2, newdata = D_5,
             iter = 8000,
             warmup = 6000,
             control = list(adapt_delta = 0.9999, max_treedepth = 15))
-save(M_5, D_Lap, file = "M_5.rda")
+save(M_5, D_5, file = "M_5.rda")
+
+## Predicting with last 7 trials
+D_6 <- 
+  D_Lap[D_Lap$trial > 4, ] |> 
+  mutate(trial = trial - 4)
+M_6 <- update(M_2, newdata = D_6,
+            chains = 8,
+            cores = 8,
+            iter = 12000,
+            warmup = 8000,
+            control = list(adapt_delta = 0.99999, max_treedepth = 15))
+save(M_6, D_6, file = "M_6.rda")
 
 ```
 
@@ -521,55 +535,74 @@ ranef(M_2, mean.func = exp) |>
 
 ## Predictions and biases
 
-If the question of the study is to predict future performance, it is important to know how much data is required to make useful predictions and whether any biases exist with shorter learning sequences. As we do not have a ground truth to compare the predictions to, we can only compare the estimates of the model when fitted to incomplete data. In the following, we compare the estimates of the model to estimates of the same model but with the data reduced to the first .
+If the question of the study is to predict future performance, it is important to know how much data is required to make useful predictions and whether any biases exist with shorter learning sequences.
+
+As we do not have a ground truth to compare the predictions to, we can only compare the estimates of the model when fitted to incomplete data. In the following, we compare the estimates of the full-data model ($M_2$) to estimates of the same model but with the data reduced to the first seven trials ($M_5$) and the last seven trials ($M_6$).
 
 
 ```{r}
 #| label: fig-robustness-pop
 #| fig.height: 4
 #| fig.width: 6
-#| fig-cap: "Robustness of the  model to deviatioting first trials (M_3)"
+#| fig-cap: "Robustness of population-level estimates with reduced data sets (M_5 and M_6)."
 
 load("M_5.rda")
+load("M_6.rda")
 
 P_2 <- posterior(M_2)
-#P_3 <- posterior(M_3)
-#P_4 <- posterior(M_4)
 P_5 <- posterior(M_5)
+P_6 <- posterior(M_6)
 
-P_ <- bind_rows(P_2, P_5) |> posterior()
+P_ <- bind_rows(P_2, P_5, P_6) |> posterior()
 
 fixef(P_, mean.func = exp) |>
   mutate(Trainee = re_entity) |>
   ggplot(aes(x = model, color = nonlin)) +
+  facet_grid(~nonlin) +
   geom_pointrange(aes(y = center, ymin = lower, ymax = upper, group = nonlin)) +
-  geom_line(aes(y = center, x = model, group = nonlin))
+  geom_line(aes(y = center, x = model, group = nonlin)) +
+  labs(y = "multiplier") +
+  scale_y_log10()
 ```
-
 
 
 ```{r}
 #| label: fig-robustness-part
-#| fig.height: 4
+#| fig.height: 8
 #| fig.width: 6
-#| fig-cap: "Robustness of the  model to deviatioting first trials (M_3)"
+#| fig-cap: "Robustness of participant-level estimates with reduced data sets (M_5 and M_6)."
 
 ranef(P_) |>
   mutate(Trainee = re_entity) |>
   ggplot(aes(y = center, x = model, color = nonlin)) +
-  facet_wrap(~nonlin, scales = "free_y") +
+  facet_wrap(~nonlin, scales = "free_y", ncol = 1) +
   geom_line(aes(group = Trainee)) +
   geom_label(aes(label = Trainee), size = 2)
 ```
 
 
-Comparing M_5 to M_2 in [@fig-robustness-pop] shows to main patterns: With only seven trials the rank order of the trainees is already stable on all three parameters, with only two outliers (trainees 19 and 10).
-Second, all three parameters regress towards the mean when less data is available. This is not a bias, but a feature of multi-level moddels called shrinkage: with less individual data, trainee-level parameters regress towards the population mean. This is a desirable property for a predictive system as can be seen at two extreme: if a decision maker had to predict the performance  of the next trainee *before* any individual data becomes available, the best guess would the average learning curve [@tbl-fixef]. In another sense of the extreme, measures in the early trials are often volatile, introducing the risk to overfit to early performance. By only gradually giving more weight to the individual parameters, the model predictions are always conservative. 
-Shrinkage also allows the researcher to perform pairwise comparison without having to adjust for multiple comparisons, which is immediatly relevant for trainee selection.
+Comparing M_5 to M_2 in [@fig-robustness-part] shows two main patterns: With only seven trials the rank order of the trainees is already stable on all three parameters, with only two outliers (trainees 19 and 10).
+Second, all three parameters regress towards the sample mean when less data is available. This is not a bias, but a feature of multi-level models called *shrinkage*. For a predictive system this is a desirable property as can be seen at two extreme: if a decision maker had to predict the performance  of the next trainee *before* any individual data becomes available, the best guess is the average learning curve [@tbl-fixef]. By gradually giving more weight to the individual parameters, the model predictions are always conservative. 
+Shrinkage also allows the researcher to perform pairwise comparison without having to adjust for multiple comparisons, which is immediately relevant for trainee selection.
+
+In contrast, removing the first five trials ($M_6$) leads to a somewhat higher estimate for pexp, as expected, but also introduces biases. On the population level, leff, maxp and scale are all estimated lower than before, whereas on the trainee level the order of trainees is well preserved for maxp, but not for pexp and leff.
 
 
-					
+# Discussion
 
+...
+
+The newly introduced parameter pexp is particularly interesting, as it captures the effect of previous experience on the learning trajectory. This makes it a potentially powerful tool for quantifying transfer effects, which are often difficult to measure with traditional learning curve analyses. By estimating pexp, we can directly assess the effectiveness of any preparatory activities, such as box trainers or simplified tasks, in terms of their contribution to effective training time. This has practical implications for curriculum design and the optimization of training programs.
+
+
+
+## Limitations
+
+1. In contrast to most common learning curve models, we used four parameters to describe the learning process. While this is a strength in terms of interpretation, it introduces the risk of unidentifiability, which is mitigated by the use of population-level parameters and regularizing priors. This implies that the model cannot estimate a single learning curve, although that may be required by the situation (e.g. an adaptive training). In the Bayesian framework, this can be resolved by establishing a strong prior on the scale parameter based on a sample of trainees.
+
+1. The model assumes that tweaks have equivalent impact, which is unlikely to be the case in real learning processes. While the empirical example shows a good fit to the data despite this simplification, future work could explore extensions of the model that allow for heterogeneous tweak effects, such as a power law or a mixture of exponentials.
+
+1. While the idea of estimating previous performance is intriguing, in the example data it was not possible to estimate it with a useful level of certainty. We believe that this is a consequence of the relatively high learning rates, which leads to a lack of repeated measurements in the early learning phase, where the effect of previous experience is most pronounced. Future work could explore this parameter in training scenarios with slower learning rates, such as more complex tasks or trainees with less prior experience. Another possibility is to use shorter periods of trials.
 
 
 
